@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<script id = "RTT-vertex" type="x-shader/x-vertex">
+precision mediump float;
+
+attribute vec4 vPosition;
+
+uniform mat4 modelingMatrix;
+uniform mat4 viewingMatrix;
+uniform mat4 projectionMatrix;
+
+varying vec4 position;
+void main()
+{
+    gl_Position = projectionMatrix * viewingMatrix * modelingMatrix * vPosition;
+    position = projectionMatrix * viewingMatrix * modelingMatrix * vPosition;
+}
+</script>
+<script id = "RTT-fragment" type="x-shader/x-fragment">
+precision mediump float;
+
+varying vec4 position;
+
+vec4 pack (float depth)
+{
+    const vec4 bitSh = vec4(256.0 * 256.0 * 256.0,
+                            256.0 * 256.0,
+                            256.0,
+                            1.0);
+    const vec4 bitMsk = vec4(0,
+                             1.0 / 256.0,
+                             1.0 / 256.0,
+                             1.0 / 256.0);
+    vec4 comp = fract(depth * bitSh);
+    comp -= comp.xxyz * bitMsk;
+    return comp;
+}
+
+
+void main()
+{
+        // the depth
+    float normalizedDistance  = position.z / position.w;
+    // scale -1.0;1.0 to 0.0;1.0 
+    normalizedDistance = (normalizedDistance + 1.0) / 2.0;
+
+    // pack value into 32-bit RGBA texture
+    gl_FragColor = pack(normalizedDistance);
+}
+</script>
+
+
+
+
+
+<script id="vertex-shader" type="x-shader/x-vertex">
+precision mediump float;
+
+attribute vec4 vPosition;
+attribute vec4 vColor;
+attribute vec4 vNormal;
+
+varying vec4 fPosition;
+varying vec4 fColor;
+varying vec4 fNormal;
+varying vec4 sPosition;
+
+uniform mat4 modelingMatrix;
+uniform mat4 viewingMatrix;
+uniform mat4 projectionMatrix;
+
+uniform mat4 sviewingMatrix;
+
+void main()
+{
+    vec4 N = normalize( modelingMatrix * vNormal );	// Normal vector
+
+	fPosition = modelingMatrix * vPosition;
+    fColor = vColor;
+	fNormal = N;
+    gl_Position = projectionMatrix * viewingMatrix * modelingMatrix * vPosition;
+    sPosition = projectionMatrix * sviewingMatrix * modelingMatrix * vPosition;
+}
+</script>
+
+<script id="fragment-shader" type="x-shader/x-fragment">
+precision mediump float;
+
+varying vec4 fPosition;
+varying vec4 fColor;  // Note that this will be interpolated between vertices.
+varying vec4 fNormal;
+varying vec4 sPosition;
+
+uniform mat4 modelingMatrix;
+uniform mat4 viewingMatrix;
+uniform mat4 projectionMatrix;
+uniform vec4 eyePosition;
+uniform vec4 lightPosition;
+uniform vec4 materialAmbient;
+uniform vec4 materialDiffuse;
+uniform vec4 materialSpecular;
+uniform float shininess;
+
+uniform sampler2D shadowSampler;
+
+
+float unpack (vec4 colour)
+{
+    const vec4 bitShifts = vec4(1.0 / (256.0 * 256.0 * 256.0),
+                                1.0 / (256.0 * 256.0),
+                                1.0 / 256.0,
+                                1);
+    return dot(colour , bitShifts);
+}
+
+float shadowSimple() 
+{ 
+    vec4 shadowMapPosition = sPosition / sPosition.w;
+        
+    shadowMapPosition = (shadowMapPosition + 1.0) /2.0;
+    
+    vec4 packedZValue = texture2D(shadowSampler, shadowMapPosition.st);
+
+    float distanceFromLight = unpack(packedZValue);
+
+    //add bias to reduce shadow acne (error margin)
+    float bias = 0.0005;
+
+    //1.0 = not in shadow (fragmant is closer to light than the value stored in shadow map)
+    //0.0 = in shadow
+    return float(distanceFromLight > shadowMapPosition.z - bias);
+}
+
+void main()
+{
+    vec4 L = normalize( lightPosition - fPosition ); // Light vector
+    vec4 N = normalize( fNormal );	// Normal vector
+	vec4 V = normalize( eyePosition - fPosition );		// Eye vector.
+    vec4 H = normalize( L + V );  // Halfway vector in the modified Phong model
+
+    // Compute terms in the illumination equation
+    vec4 ambient = materialAmbient;
+
+    float Kd = max( dot(L, N), 0.0 );
+    vec4  diffuse = Kd * materialDiffuse;
+
+	float Ks = pow( max(dot(N, H), 0.0), shininess );
+    vec4  specular = Ks * materialSpecular;
+
+    float visability = 0.0;
+
+    if (sPosition.w > 0.0) {
+            
+        visability = shadowSimple();
+        
+    }
+
+    gl_FragColor = (ambient + diffuse * visability) * fColor + specular * visability;
+}
+</script>
+
+<script type="text/javascript" src="Common/webgl-utils.js"></script>
+<script type="text/javascript" src="Common/initShaders.js"></script>
+<script type="text/javascript" src="Common/MV.js"></script>
+<script type="text/javascript" src="shadowTest.js"></script>
+</head>
+
+<body>
+<canvas id="gl-canvas" width="512" height="512">
+Oops ... your browser doesn't support the HTML5 canvas element
+</canvas>
+
+
+
+</body>
+</html>
