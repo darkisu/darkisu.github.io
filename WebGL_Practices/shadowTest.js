@@ -123,9 +123,9 @@ var materialShininess = 12.0;
 
 function spherePoint(theta, phi)
 {
-	var V = vec4(Math.cos(theta)*Math.cos(phi), Math.sin(phi), Math.sin(theta)*Math.cos(phi), 1.0);
+	var V = vec4(Math.cos(theta)*Math.cos(phi), Math.sin(phi), Math.sin(theta)*Math.cos(phi), 0.0);
 	var smallV = scalev(0.5, V); // scale the sphere to the range of [-0.5, 0.5]
-	
+	smallV[3] = 1.0;
 	normalize(V, 1);
 	pointsArray.push(smallV);
 	normalsArray.push(V);
